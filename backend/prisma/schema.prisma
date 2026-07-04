@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String      @id @default(cuid())
+  email                 String      @unique
+  username              String      @unique
+  password              String
+  fullName              String?
+  avatar                String?
+  role                  Role        @default(USER)
+  languagePreference    String      @default("en")
+  forcePasswordChange   Boolean     @default(false)
+  isActive              Boolean     @default(true)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  // Relations
+  predictions           Prediction[]
+  leaderboardEntry      Leaderboard?
+  refreshTokens         RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  userId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Tournament {
+  id          String    @id @default(cuid())
+  name        String
+  type        String    // "World Cup", "Champions League", "League"
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  status      String    @default("upcoming") // "upcoming", "ongoing", "completed"
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  matches     Match[]
+
+  @@index([status])
+  @@index([startDate])
+  @@map("tournaments")
+}
+
+model Match {
+  id              String      @id @default(cuid())
+  tournamentId    String
+  homeTeam        String
+  awayTeam        String
+  matchDate       DateTime
+  status          String      @default("scheduled") // "scheduled", "live", "finished", "postponed"
+  homeScore       Int?
+  awayScore       Int?
+  externalApiId   String?     @unique
+  lastUpdated     DateTime    @default(now()) @updatedAt
+  createdAt       DateTime    @default(now())
+
+  // Relations
+  tournament      Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  predictions     Prediction[]
+
+  @@index([tournamentId])
+  @@index([status])
+  @@index([matchDate])
+  @@map("matches")
+}
+
+model Prediction {
+  id                    String    @id @default(cuid())
+  userId                String
+  matchId               String
+  predictedHomeScore    Int
+  predictedAwayScore    Int
+  predictedResult       String    // "home", "draw", "away"
+  points                Int       @default(0)
+  status                String    @default("pending") // "pending", "calculated", "wrong"
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match                 Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, matchId])
+  @@index([userId])
+  @@index([matchId])
+  @@index([status])
+  @@map("predictions")
+}
+
+model Leaderboard {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  points              Int       @default(0)
+  rank                Int
+  totalPredictions    Int       @default(0)
+  correctPredictions  Int       @default(0)
+  accuracy            Float     @default(0)
+  lastUpdated         DateTime  @default(now()) @updatedAt
+
+  // Relations
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([rank])
+  @@index([points])
+  @@map("leaderboard")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
